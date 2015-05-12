@@ -1,0 +1,10 @@
+For Current Location:
+http://www.joellipman.com/articles/google/android-o-s/app-development/733-basic-android-app-using-google-maps-and-current-location.html
+
+
+For long click listner:
+http://android-er.blogspot.de/2013/01/google-maps-android-api-v2-example_3.html
+
+For SharedPreferences:
+http://stackoverflow.com/questions/21396358/sharedpreferences-putstringset-doesnt-work
+

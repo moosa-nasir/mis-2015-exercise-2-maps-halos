@@ -2,6 +2,7 @@ package com.example.mmbuw.hellomaps;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -13,27 +14,38 @@ import android.widget.EditText;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.VisibleRegion;
 
+import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
-public class MapsActivity extends FragmentActivity implements GoogleMap.OnMapLongClickListener {
+public class MapsActivity extends FragmentActivity implements GoogleMap.OnMapLongClickListener, GoogleMap.OnCameraChangeListener {
 
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
     EditText mEdit;
     SharedPreferences sPreferences;
+    private List<Circle> circles = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+        sPreferences = getSharedPreferences("mySharedPreferences", 0);
         mEdit   = (EditText)findViewById(R.id.editText);
         setUpMapIfNeeded();
-        sPreferences = getSharedPreferences("mySharedPreferences", 0);
+
 
         mMap.setOnMapLongClickListener(this);
+        mMap.setOnCameraChangeListener(this);
     }
 
     @Override
@@ -74,22 +86,64 @@ public class MapsActivity extends FragmentActivity implements GoogleMap.OnMapLon
     public void onMapLongClick(LatLng point) {
         mMap.addMarker(new MarkerOptions().position(point).title(mEdit.getText().toString()));
         addToSharedPreferences((point.latitude + ":" + point.longitude + ":" + mEdit.getText().toString()));
+        drawCircles(point.latitude,point.longitude);
     }
 
     public void addToSharedPreferences(String str){
         Set<String> stringHashSet = sPreferences.getStringSet("markerSet", new HashSet<String>());
         Set<String> tempCopySet = new HashSet<String>(stringHashSet);
         tempCopySet.add(str);
-        sPreferences.edit().putStringSet("markerSet", tempCopySet).commit(); // brevity
-        Log.i("chauster", "2.set = " + sPreferences.getStringSet("markerSet", new HashSet<String>()));
+        sPreferences.edit().putStringSet("markerSet", tempCopySet).commit();
     }
 
-    /**
-     * This is where we can add markers or lines, add listeners or move the camera. In this case, we
-     * just add a marker near Africa.
-     * <p/>
-     * This should only be called once and when we are sure that {@link #mMap} is not null.
-     */
+    @Override
+    public void onCameraChange(CameraPosition cameraPosition) {
+       for (Circle circle : circles) {
+            double radius = getRadiusOfCircle(circle, cameraPosition);
+            circle.setRadius(radius);
+        }
+    }
+    public double getRadiusOfCircle(Circle circle, CameraPosition cameraPosition){
+        LatLngBounds screenBoundary = mMap.getProjection().getVisibleRegion().latLngBounds;
+        double diff = distanceBetween(cameraPosition.target,circle.getCenter());
+        if (screenBoundary.contains(circle.getCenter()))
+            return 0;
+        else
+            return diff*300000;
+    }
+    public void drawCircles(double latitude, double longitude)
+    {
+        CircleOptions circleOptions = new CircleOptions();
+        circleOptions.center(new LatLng(latitude, longitude));
+        circleOptions.radius(0);
+        circleOptions.strokeColor(Color.RED);
+        Circle circle = mMap.addCircle(circleOptions);
+        circles.add(circle);
+    }
+
+    private double distanceBetween(LatLng firstPoint, LatLng SecondPoint) {
+        float[] result = new float[1];
+        Location.distanceBetween(firstPoint.latitude, firstPoint.longitude, SecondPoint.latitude, SecondPoint.longitude, result);
+        return result[0];
+    }
+
+
+    public void loadMarkersAndCircles()
+    {
+        Set<String> stringHashSet = sPreferences.getStringSet("markerSet", new HashSet<String>());
+        String[] markerData = null;
+        for (String s : stringHashSet) {
+            markerData = s.split(":");
+            double latitude = Double.parseDouble(markerData[0]);
+            double longitude = Double.parseDouble(markerData[1]);
+            String message = "";
+            if (markerData.length == 3){
+                message = markerData[2];
+            }
+            mMap.addMarker(new MarkerOptions().position(new LatLng(latitude, longitude)).title(message));
+            drawCircles(latitude, longitude);
+        }
+    }
 
     private void setUpMap() {
         // Enable MyLocation Layer of Google Map
@@ -125,5 +179,6 @@ public class MapsActivity extends FragmentActivity implements GoogleMap.OnMapLon
         // Zoom in the Google Map
         mMap.animateCamera(CameraUpdateFactory.zoomTo(14));
         mMap.addMarker(new MarkerOptions().position(new LatLng(latitude, longitude)).title("Your Current Location!!"));
+        loadMarkersAndCircles();
     }
 }
